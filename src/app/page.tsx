@@ -10,14 +10,12 @@ import { useRpcMode } from './providers'
 import styles from './page.module.css'
 
 const DEFAULT_GAS_BUFFER_PERCENT = Number(process.env.NEXT_PUBLIC_GAS_BUFFER_PERCENT ?? '30')
+const DEFAULT_TEST_AMOUNT = process.env.NEXT_PUBLIC_DEFAULT_TEST_AMOUNT ?? '0.000001'
+const DEFAULT_FEE_BUFFER_ENABLED = process.env.NEXT_PUBLIC_FEE_PRICE_BUFFER_ENABLED === 'true'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+const TEST_RECIPIENT_ADDRESS = '0x000000000000000000000000000000000000dEaD'
 const BUGO_FLARE_ADDRESS = process.env.NEXT_PUBLIC_BUGO_FLARE_TOKEN_ADDRESS ?? '0x6c1490729ce19E809Cf9F7e3e223c0490833DE02'
-const NETWORKS = [
-  { id: flare.id, name: 'Flare Mainnet' },
-  { id: songbird.id, name: 'Songbird' },
-  { id: flareTestnet.id, name: 'Flare Testnet' },
-  { id: songbirdTestnet.id, name: 'Songbird Testnet' },
-]
+const SUPPORTED_CHAIN_IDS = [flare.id, songbird.id, flareTestnet.id, songbirdTestnet.id]
 const WRAPPED_TOKEN_BY_CHAIN: Record<number, string> = {
   [flare.id]: process.env.NEXT_PUBLIC_FLARE_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
   [songbird.id]: process.env.NEXT_PUBLIC_SONGBIRD_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
@@ -33,12 +31,15 @@ type TokenOption = {
 
 export default function Page() {
   const { rpcMode, setRpcMode, rpcUrlsByChainId } = useRpcMode()
-  const { address } = useConnection()
-  const [selectedChainId, setSelectedChainId] = useState<number>(flare.id)
+  const { address, chainId: connectedChainId } = useConnection()
+  const selectedChainId = connectedChainId && SUPPORTED_CHAIN_IDS.includes(connectedChainId)
+    ? connectedChainId
+    : flare.id
   const [selectedTokenAddress, setSelectedTokenAddress] = useState('')
   const [to, setTo] = useState('')
-  const [amount, setAmount] = useState('1')
+  const [amount, setAmount] = useState(DEFAULT_TEST_AMOUNT)
   const [gasBufferPercentInput, setGasBufferPercentInput] = useState(String(DEFAULT_GAS_BUFFER_PERCENT))
+  const [feePriceBufferEnabled, setFeePriceBufferEnabled] = useState(DEFAULT_FEE_BUFFER_ENABLED)
   const [sendError, setSendError] = useState<string | null>(null)
   const [gasError, setGasError] = useState<string | null>(null)
   const gasBufferPercent = Math.max(0, Math.round(Number(gasBufferPercentInput) || 0))
@@ -74,14 +75,24 @@ export default function Page() {
     tokenAddress: tokenAddressForHook,
     tokenBalance: { value: 125_500_000_000_000_000_000n, decimals: 18 },
     chainId: selectedChainId,
-    allowedChainIds: [selectedChainId],
+    allowedChainIds: SUPPORTED_CHAIN_IDS,
     requireMinGasNative: false,
     gasBufferPercent,
+    feePriceBufferEnabled,
   })
 
   const validation = useMemo(() => hook.validate(to, amount), [hook, to, amount])
   const gasOverhead = hook.lastEstimatedGas && hook.lastGasLimit
     ? hook.lastGasLimit - hook.lastEstimatedGas
+    : null
+  const maxFeeOverhead = hook.lastEstimatedMaxFeePerGas && hook.lastMaxFeePerGas
+    ? hook.lastMaxFeePerGas - hook.lastEstimatedMaxFeePerGas
+    : null
+  const maxPriorityFeeOverhead = hook.lastEstimatedMaxPriorityFeePerGas && hook.lastMaxPriorityFeePerGas
+    ? hook.lastMaxPriorityFeePerGas - hook.lastEstimatedMaxPriorityFeePerGas
+    : null
+  const gasPriceOverhead = hook.lastEstimatedGasPrice && hook.lastGasPrice
+    ? hook.lastGasPrice - hook.lastEstimatedGasPrice
     : null
 
   async function onSend() {
@@ -144,21 +155,6 @@ export default function Page() {
         </div>
 
         <div className={styles.row}>
-          <label className={styles.label}>Network</label>
-          <select
-            className={styles.select}
-            value={selectedChainId}
-            onChange={(e) => setSelectedChainId(Number(e.target.value))}
-          >
-            {NETWORKS.map((network) => (
-              <option key={network.id} value={network.id}>
-                {network.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className={styles.row}>
           <label className={styles.label}>Token</label>
           <select
             className={styles.select}
@@ -199,6 +195,20 @@ export default function Page() {
               Connect wallet first. Recipient auto-fills with your own address for safer testing.
             </p>
           )}
+          {validation.selfTransfer ? (
+            <div className={styles.inlineWarningRow}>
+              <p className={styles.warningNote}>
+                Self transfer is blocked for this test flow (WNat can revert with "Cannot transfer to self").
+              </p>
+              <button
+                className={styles.chip}
+                type="button"
+                onClick={() => setTo(TEST_RECIPIENT_ADDRESS)}
+              >
+                Use Test Address
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className={styles.split}>
@@ -224,11 +234,14 @@ export default function Page() {
           </div>
         </div>
 
-        <div className={styles.percentRow}>
-          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(25))}>25%</button>
-          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(50))}>50%</button>
-          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(100))}>100%</button>
-        </div>
+        <label className={styles.toggleRow}>
+          <input
+            type="checkbox"
+            checked={feePriceBufferEnabled}
+            onChange={(e) => setFeePriceBufferEnabled(e.target.checked)}
+          />
+          <span>Also buffer fee prices (max fee / priority fee / gas price)</span>
+        </label>
 
         <div className={styles.actionRow}>
           <button
@@ -271,8 +284,19 @@ export default function Page() {
     gas: {
       lastEstimatedGas: hook.lastEstimatedGas?.toString() ?? null,
       gasBufferPercent: hook.gasBufferPercent,
+      feePriceBufferEnabled: hook.feePriceBufferEnabled,
       gasOverhead: gasOverhead?.toString() ?? null,
       lastGasLimit: hook.lastGasLimit?.toString() ?? null,
+      feeModel: hook.lastMaxFeePerGas ? 'eip1559' : hook.lastGasPrice ? 'legacy' : null,
+      lastEstimatedMaxFeePerGas: hook.lastEstimatedMaxFeePerGas?.toString() ?? null,
+      lastMaxFeePerGas: hook.lastMaxFeePerGas?.toString() ?? null,
+      maxFeeOverhead: maxFeeOverhead?.toString() ?? null,
+      lastEstimatedMaxPriorityFeePerGas: hook.lastEstimatedMaxPriorityFeePerGas?.toString() ?? null,
+      lastMaxPriorityFeePerGas: hook.lastMaxPriorityFeePerGas?.toString() ?? null,
+      maxPriorityFeeOverhead: maxPriorityFeeOverhead?.toString() ?? null,
+      lastEstimatedGasPrice: hook.lastEstimatedGasPrice?.toString() ?? null,
+      lastGasPrice: hook.lastGasPrice?.toString() ?? null,
+      gasPriceOverhead: gasPriceOverhead?.toString() ?? null,
       gasError,
     },
     tx: {

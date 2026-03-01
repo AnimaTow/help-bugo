@@ -3,7 +3,7 @@
 import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
-import { WagmiProvider, createConfig, http } from 'wagmi'
+import { WagmiProvider, createConfig, createStorage, http } from 'wagmi'
 import { flare, flareTestnet, songbird, songbirdTestnet } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 
@@ -33,6 +33,37 @@ function pickRpcUrl(params: {
   }
 
   return publicUrl || legacyUrl || privateUrl || fallbackUrl
+}
+
+function getSafeStorageBackend() {
+  const fallback = {
+    getItem: (_key: string) => null,
+    setItem: (_key: string, _value: string) => {},
+    removeItem: (_key: string) => {},
+  }
+
+  const maybeStorage = globalThis?.localStorage as
+    | { getItem?: unknown; setItem?: unknown; removeItem?: unknown }
+    | undefined
+
+  if (
+    maybeStorage &&
+    typeof maybeStorage.getItem === 'function' &&
+    typeof maybeStorage.setItem === 'function' &&
+    typeof maybeStorage.removeItem === 'function'
+  ) {
+    return {
+      getItem: (key: string) => maybeStorage.getItem!(key) as string | null,
+      setItem: (key: string, value: string) => {
+        maybeStorage.setItem!(key, value)
+      },
+      removeItem: (key: string) => {
+        maybeStorage.removeItem!(key)
+      },
+    }
+  }
+
+  return fallback
 }
 
 export function useRpcMode() {
@@ -97,10 +128,11 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [flareRpcUrl, songbirdRpcUrl, flareTestnetRpcUrl, songbirdTestnetRpcUrl])
 
   const wagmiConfig = useMemo(() => {
+    const isBrowser = typeof window !== 'undefined'
     const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-    const connectors = [injected({ shimDisconnect: true })]
+    const connectors = [injected({ shimDisconnect: false })]
 
-    if (walletConnectProjectId) {
+    if (walletConnectProjectId && isBrowser) {
       connectors.push(
         walletConnect({
           projectId: walletConnectProjectId,
@@ -117,13 +149,14 @@ export function Providers({ children }: { children: ReactNode }) {
     return createConfig({
       chains: [flare, songbird, flareTestnet, songbirdTestnet],
       connectors,
+      storage: createStorage({ storage: getSafeStorageBackend() }),
       transports: {
         [flare.id]: http(flareRpcUrl),
         [songbird.id]: http(songbirdRpcUrl),
         [flareTestnet.id]: http(flareTestnetRpcUrl),
         [songbirdTestnet.id]: http(songbirdTestnetRpcUrl),
       },
-      ssr: true,
+      ssr: false,
     })
   }, [flareRpcUrl, songbirdRpcUrl, flareTestnetRpcUrl, songbirdTestnetRpcUrl])
 

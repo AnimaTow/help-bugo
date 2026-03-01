@@ -88,6 +88,26 @@
   padding: 0.5rem 0.6rem;
 }
 
+.toggleRow {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--ink-mid);
+}
+
+.toggleRow input {
+  width: 16px;
+  height: 16px;
+}
+
+.inlineWarningRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .warningNote {
   color: #9a3412;
   background: #ffedd5;

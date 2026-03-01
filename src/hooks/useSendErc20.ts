@@ -35,6 +35,7 @@ export function useSendErc20(opts: {
     nativeBalance?: BalanceLike // für Gas-Check
     minGasNative?: number       // ~0.0003 FLR als Faustregel
     gasBufferPercent?: number
+    feePriceBufferEnabled?: boolean
 }) {
     const {
         tokenAddress,
@@ -45,6 +46,7 @@ export function useSendErc20(opts: {
         nativeBalance,
         minGasNative = 0.0003,
         gasBufferPercent = 30,
+        feePriceBufferEnabled = false,
     } = opts
 
     const dec = tokenBalance?.decimals ?? 18
@@ -70,14 +72,25 @@ export function useSendErc20(opts: {
     const publicClient = usePublicClient({ chainId: effectiveChainId })
     const [lastEstimatedGas, setLastEstimatedGas] = useState<bigint | null>(null)
     const [lastGasLimit, setLastGasLimit] = useState<bigint | null>(null)
+    const [lastEstimatedGasPrice, setLastEstimatedGasPrice] = useState<bigint | null>(null)
+    const [lastGasPrice, setLastGasPrice] = useState<bigint | null>(null)
+    const [lastEstimatedMaxFeePerGas, setLastEstimatedMaxFeePerGas] = useState<bigint | null>(null)
+    const [lastMaxFeePerGas, setLastMaxFeePerGas] = useState<bigint | null>(null)
+    const [lastEstimatedMaxPriorityFeePerGas, setLastEstimatedMaxPriorityFeePerGas] = useState<bigint | null>(null)
+    const [lastMaxPriorityFeePerGas, setLastMaxPriorityFeePerGas] = useState<bigint | null>(null)
+
+    function applyBuffer(value: bigint) {
+        return value * BigInt(100 + normalizedGasBufferPercent) / BigInt(100)
+    }
 
     function validate(to: string, amount: string) {
         const toValid = !!to && isAddress(to as Address)
         const n = Number(amount)
         const amtValid = Number.isFinite(n) && n > 0 && n <= max
         const networkOk = !!effectiveChainId && allowedChainIds.includes(effectiveChainId)
-        const canSubmit = toValid && amtValid && networkOk && nativeOk && !isPending && !isConfirming
-        return { toValid, amtValid, networkOk, nativeOk, canSubmit }
+        const selfTransfer = !!address && !!toValid && address.toLowerCase() === to.toLowerCase()
+        const canSubmit = toValid && amtValid && networkOk && nativeOk && !selfTransfer && !isPending && !isConfirming
+        return { toValid, amtValid, networkOk, nativeOk, selfTransfer, canSubmit }
     }
 
     async function estimateGas(to: Address, amount: string) {
@@ -93,11 +106,58 @@ export function useSendErc20(opts: {
             account: address,
         })
 
-        const gasLimit = estimatedGas * BigInt(100 + normalizedGasBufferPercent) / BigInt(100)
+        const gasLimit = applyBuffer(estimatedGas)
         setLastEstimatedGas(estimatedGas)
         setLastGasLimit(gasLimit)
 
-        return { estimatedGas, gasLimit }
+        let feeParams: {
+            gasPrice?: bigint
+            maxFeePerGas?: bigint
+            maxPriorityFeePerGas?: bigint
+        } = {}
+
+        try {
+            const estimatedFees = await publicClient.estimateFeesPerGas()
+
+            if (estimatedFees.maxFeePerGas && estimatedFees.maxPriorityFeePerGas) {
+                const maxFeePerGas = feePriceBufferEnabled
+                    ? applyBuffer(estimatedFees.maxFeePerGas)
+                    : estimatedFees.maxFeePerGas
+                const maxPriorityFeePerGas = feePriceBufferEnabled
+                    ? applyBuffer(estimatedFees.maxPriorityFeePerGas)
+                    : estimatedFees.maxPriorityFeePerGas
+
+                setLastEstimatedMaxFeePerGas(estimatedFees.maxFeePerGas)
+                setLastMaxFeePerGas(maxFeePerGas)
+                setLastEstimatedMaxPriorityFeePerGas(estimatedFees.maxPriorityFeePerGas)
+                setLastMaxPriorityFeePerGas(maxPriorityFeePerGas)
+                setLastEstimatedGasPrice(null)
+                setLastGasPrice(null)
+
+                if (feePriceBufferEnabled) {
+                    feeParams = { maxFeePerGas, maxPriorityFeePerGas }
+                }
+            } else if (estimatedFees.gasPrice) {
+                const gasPrice = feePriceBufferEnabled
+                    ? applyBuffer(estimatedFees.gasPrice)
+                    : estimatedFees.gasPrice
+
+                setLastEstimatedGasPrice(estimatedFees.gasPrice)
+                setLastGasPrice(gasPrice)
+                setLastEstimatedMaxFeePerGas(null)
+                setLastMaxFeePerGas(null)
+                setLastEstimatedMaxPriorityFeePerGas(null)
+                setLastMaxPriorityFeePerGas(null)
+
+                if (feePriceBufferEnabled) {
+                    feeParams = { gasPrice }
+                }
+            }
+        } catch {
+            // fee estimation can fail on some RPCs; gas limit estimation is still usable
+        }
+
+        return { estimatedGas, gasLimit, feeParams }
     }
 
     async function send(to: Address, amount: string) {
@@ -117,6 +177,7 @@ export function useSendErc20(opts: {
             account: address,
             chain: publicClient.chain,
             gas: gasWithBuffer,
+            ...gasResult.feeParams,
         })
     }
 
@@ -136,6 +197,7 @@ export function useSendErc20(opts: {
         max,
         nativeOk,
         gasBufferPercent: normalizedGasBufferPercent,
+        feePriceBufferEnabled,
         // actions
         validate,
         estimateGas,
@@ -145,6 +207,12 @@ export function useSendErc20(opts: {
         // gas state
         lastEstimatedGas,
         lastGasLimit,
+        lastEstimatedGasPrice,
+        lastGasPrice,
+        lastEstimatedMaxFeePerGas,
+        lastMaxFeePerGas,
+        lastEstimatedMaxPriorityFeePerGas,
+        lastMaxPriorityFeePerGas,
         // tx state
         txHash: hash,
         isPending,

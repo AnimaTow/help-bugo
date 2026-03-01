@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { Address } from 'viem'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useSendErc20 } from '../hooks/useSendErc20'
 import { useRpcMode } from './providers'
 import styles from './page.module.css'
@@ -53,10 +54,17 @@ export default function Page() {
   return (
     <main className={styles.page}>
       <header className={styles.hero}>
-        <h1 className={styles.title}>useSendErc20 Test Console</h1>
-        <p className={styles.subtitle}>
-          Switch RPC profile, tune gas buffer, estimate limits, and inspect live hook state.
-        </p>
+        <div className={styles.heroTop}>
+          <div>
+            <h1 className={styles.title}>useSendErc20 Test Console</h1>
+            <p className={styles.subtitle}>
+              Switch RPC profile, tune gas buffer, estimate limits, and inspect live hook state.
+            </p>
+          </div>
+          <div className={styles.walletBox}>
+            <ConnectButton chainStatus="icon" showBalance={false} />
+          </div>
+        </div>
       </header>
 
       <section className={styles.panel}>

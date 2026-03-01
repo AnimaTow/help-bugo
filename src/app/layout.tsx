@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import '@rainbow-me/rainbowkit/styles.css'
 import './globals.css'
 import { Providers } from './providers'
 

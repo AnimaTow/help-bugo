@@ -1,6 +1,6 @@
 'use client'
 
-import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useAccount, useChainId } from 'wagmi'
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useConnection, useChainId } from 'wagmi'
 import type { Address } from 'viem'
 import { isAddress, parseUnits, formatUnits } from 'viem'
 import { useMemo, useState } from 'react'
@@ -64,7 +64,7 @@ export function useSendErc20(opts: {
 
     const { writeContractAsync, data: hash, isPending, error } = useWriteContract()
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
-    const { address } = useAccount()
+    const { address } = useConnection()
     const connectedChainId = useChainId()
     const effectiveChainId = chainId ?? connectedChainId
     const publicClient = usePublicClient({ chainId: effectiveChainId })

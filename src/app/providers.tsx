@@ -1,10 +1,11 @@
 'use client'
 
+import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { WagmiProvider, createConfig, http } from 'wagmi'
 import { flare, flareTestnet } from 'wagmi/chains'
-import { injected } from 'wagmi/connectors'
+import { injected, walletConnect } from 'wagmi/connectors'
 
 type RpcMode = 'public' | 'private'
 
@@ -68,9 +69,26 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [rpcMode])
 
   const wagmiConfig = useMemo(() => {
+    const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+    const connectors = [injected({ shimDisconnect: true })]
+
+    if (walletConnectProjectId) {
+      connectors.push(
+        walletConnect({
+          projectId: walletConnectProjectId,
+          metadata: {
+            name: 'Flare Hook Test',
+            description: 'RainbowKit + Flare test console',
+            url: 'http://localhost:3000',
+            icons: [],
+          },
+        }),
+      )
+    }
+
     return createConfig({
       chains: [flare, flareTestnet],
-      connectors: [injected({ shimDisconnect: true })],
+      connectors,
       transports: {
         [flare.id]: http(flareRpcUrl),
         [flareTestnet.id]: http(flareTestnetRpcUrl),
@@ -82,7 +100,18 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <RpcModeContext.Provider value={{ rpcMode, setRpcMode, flareRpcUrl, flareTestnetRpcUrl }}>
       <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider
+            theme={lightTheme({
+              accentColor: '#0f766e',
+              accentColorForeground: '#ffffff',
+              borderRadius: 'medium',
+              overlayBlur: 'small',
+            })}
+          >
+            {children}
+          </RainbowKitProvider>
+        </QueryClientProvider>
       </WagmiProvider>
     </RpcModeContext.Provider>
   )

@@ -16,6 +16,14 @@
   animation: reveal 0.5s ease both;
 }
 
+.heroTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .hero::after {
   content: "";
   position: absolute;
@@ -36,6 +44,13 @@
 .subtitle {
   margin: 0.4rem 0 0;
   color: var(--ink-mid);
+}
+
+.walletBox {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 220px;
 }
 
 .panel {
@@ -186,6 +201,11 @@
 
   .split {
     grid-template-columns: 1fr;
+  }
+
+  .walletBox {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .actionRow {

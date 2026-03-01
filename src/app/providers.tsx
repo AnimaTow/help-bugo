@@ -4,7 +4,7 @@ import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { WagmiProvider, createConfig, http } from 'wagmi'
-import { flare, flareTestnet } from 'wagmi/chains'
+import { flare, flareTestnet, songbird, songbirdTestnet } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 
 type RpcMode = 'public' | 'private'
@@ -12,8 +12,7 @@ type RpcMode = 'public' | 'private'
 type RpcModeContextValue = {
   rpcMode: RpcMode
   setRpcMode: (mode: RpcMode) => void
-  flareRpcUrl: string
-  flareTestnetRpcUrl: string
+  rpcUrlsByChainId: Record<number, string>
 }
 
 const RpcModeContext = createContext<RpcModeContextValue | null>(null)
@@ -68,6 +67,35 @@ export function Providers({ children }: { children: ReactNode }) {
     })
   }, [rpcMode])
 
+  const songbirdRpcUrl = useMemo(() => {
+    return pickRpcUrl({
+      mode: rpcMode,
+      publicUrl: process.env.NEXT_PUBLIC_SONGBIRD_RPC_PUBLIC_URL,
+      privateUrl: process.env.NEXT_PUBLIC_SONGBIRD_RPC_PRIVATE_URL,
+      legacyUrl: process.env.NEXT_PUBLIC_SONGBIRD_RPC_URL,
+      fallbackUrl: songbird.rpcUrls.default.http[0],
+    })
+  }, [rpcMode])
+
+  const songbirdTestnetRpcUrl = useMemo(() => {
+    return pickRpcUrl({
+      mode: rpcMode,
+      publicUrl: process.env.NEXT_PUBLIC_SONGBIRD_TESTNET_RPC_PUBLIC_URL,
+      privateUrl: process.env.NEXT_PUBLIC_SONGBIRD_TESTNET_RPC_PRIVATE_URL,
+      legacyUrl: process.env.NEXT_PUBLIC_SONGBIRD_TESTNET_RPC_URL,
+      fallbackUrl: songbirdTestnet.rpcUrls.default.http[0],
+    })
+  }, [rpcMode])
+
+  const rpcUrlsByChainId = useMemo(() => {
+    return {
+      [flare.id]: flareRpcUrl,
+      [songbird.id]: songbirdRpcUrl,
+      [flareTestnet.id]: flareTestnetRpcUrl,
+      [songbirdTestnet.id]: songbirdTestnetRpcUrl,
+    }
+  }, [flareRpcUrl, songbirdRpcUrl, flareTestnetRpcUrl, songbirdTestnetRpcUrl])
+
   const wagmiConfig = useMemo(() => {
     const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
     const connectors = [injected({ shimDisconnect: true })]
@@ -87,18 +115,20 @@ export function Providers({ children }: { children: ReactNode }) {
     }
 
     return createConfig({
-      chains: [flare, flareTestnet],
+      chains: [flare, songbird, flareTestnet, songbirdTestnet],
       connectors,
       transports: {
         [flare.id]: http(flareRpcUrl),
+        [songbird.id]: http(songbirdRpcUrl),
         [flareTestnet.id]: http(flareTestnetRpcUrl),
+        [songbirdTestnet.id]: http(songbirdTestnetRpcUrl),
       },
       ssr: true,
     })
-  }, [flareRpcUrl, flareTestnetRpcUrl])
+  }, [flareRpcUrl, songbirdRpcUrl, flareTestnetRpcUrl, songbirdTestnetRpcUrl])
 
   return (
-    <RpcModeContext.Provider value={{ rpcMode, setRpcMode, flareRpcUrl, flareTestnetRpcUrl }}>
+    <RpcModeContext.Provider value={{ rpcMode, setRpcMode, rpcUrlsByChainId }}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider

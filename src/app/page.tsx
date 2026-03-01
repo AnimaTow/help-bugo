@@ -4,16 +4,38 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useConnection } from 'wagmi'
+import { flare, flareTestnet, songbird, songbirdTestnet } from 'wagmi/chains'
 import { useSendErc20 } from '../hooks/useSendErc20'
 import { useRpcMode } from './providers'
 import styles from './page.module.css'
 
-const TEST_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 const DEFAULT_GAS_BUFFER_PERCENT = Number(process.env.NEXT_PUBLIC_GAS_BUFFER_PERCENT ?? '30')
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+const BUGO_FLARE_ADDRESS = process.env.NEXT_PUBLIC_BUGO_FLARE_TOKEN_ADDRESS ?? '0x6c1490729ce19E809Cf9F7e3e223c0490833DE02'
+const NETWORKS = [
+  { id: flare.id, name: 'Flare Mainnet' },
+  { id: songbird.id, name: 'Songbird' },
+  { id: flareTestnet.id, name: 'Flare Testnet' },
+  { id: songbirdTestnet.id, name: 'Songbird Testnet' },
+]
+const WRAPPED_TOKEN_BY_CHAIN: Record<number, string> = {
+  [flare.id]: process.env.NEXT_PUBLIC_FLARE_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
+  [songbird.id]: process.env.NEXT_PUBLIC_SONGBIRD_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
+  [flareTestnet.id]: process.env.NEXT_PUBLIC_FLARE_TESTNET_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
+  [songbirdTestnet.id]: process.env.NEXT_PUBLIC_SONGBIRD_TESTNET_WRAPPED_TOKEN_ADDRESS ?? ZERO_ADDRESS,
+}
+
+type TokenOption = {
+  symbol: string
+  label: string
+  address: string
+}
 
 export default function Page() {
-  const { rpcMode, setRpcMode, flareRpcUrl } = useRpcMode()
+  const { rpcMode, setRpcMode, rpcUrlsByChainId } = useRpcMode()
   const { address } = useConnection()
+  const [selectedChainId, setSelectedChainId] = useState<number>(flare.id)
+  const [selectedTokenAddress, setSelectedTokenAddress] = useState('')
   const [to, setTo] = useState('')
   const [amount, setAmount] = useState('1')
   const [gasBufferPercentInput, setGasBufferPercentInput] = useState(String(DEFAULT_GAS_BUFFER_PERCENT))
@@ -21,12 +43,38 @@ export default function Page() {
   const [gasError, setGasError] = useState<string | null>(null)
   const gasBufferPercent = Math.max(0, Math.round(Number(gasBufferPercentInput) || 0))
   const isOwnAddress = !!address && !!to && address.toLowerCase() === to.toLowerCase()
+  const tokenOptions = useMemo<TokenOption[]>(() => {
+    const wrappedByNetwork: Record<number, { symbol: string; label: string }> = {
+      [flare.id]: { symbol: 'WFLR', label: 'Wrapped FLR' },
+      [songbird.id]: { symbol: 'WSGB', label: 'Wrapped SGB' },
+      [flareTestnet.id]: { symbol: 'C2FLR', label: 'Wrapped FLR (Coston2)' },
+      [songbirdTestnet.id]: { symbol: 'CFLR', label: 'Wrapped SGB (Coston)' },
+    }
+
+    const wrapped = wrappedByNetwork[selectedChainId] ?? { symbol: 'WRAP', label: 'Wrapped Token' }
+    const options: TokenOption[] = [
+      {
+        symbol: wrapped.symbol,
+        label: wrapped.label,
+        address: WRAPPED_TOKEN_BY_CHAIN[selectedChainId] ?? ZERO_ADDRESS,
+      },
+    ]
+
+    if (selectedChainId === flare.id) {
+      options.push({ symbol: 'BUGO', label: 'BUGO Token', address: BUGO_FLARE_ADDRESS })
+    }
+
+    return options
+  }, [selectedChainId])
+  const selectedToken = tokenOptions.find((token) => token.address === selectedTokenAddress) ?? tokenOptions[0]
+  const tokenAddressForHook = (selectedToken?.address ?? ZERO_ADDRESS) as Address
+  const tokenAddressMissing = tokenAddressForHook.toLowerCase() === ZERO_ADDRESS.toLowerCase()
 
   const hook = useSendErc20({
-    tokenAddress: TEST_TOKEN_ADDRESS,
+    tokenAddress: tokenAddressForHook,
     tokenBalance: { value: 125_500_000_000_000_000_000n, decimals: 18 },
-    chainId: 14,
-    allowedChainIds: [14],
+    chainId: selectedChainId,
+    allowedChainIds: [selectedChainId],
     requireMinGasNative: false,
     gasBufferPercent,
   })
@@ -60,6 +108,12 @@ export default function Page() {
     }
   }, [address, to])
 
+  useEffect(() => {
+    if (!selectedTokenAddress || !tokenOptions.some((token) => token.address === selectedTokenAddress)) {
+      setSelectedTokenAddress(tokenOptions[0]?.address ?? ZERO_ADDRESS)
+    }
+  }, [selectedTokenAddress, tokenOptions])
+
   return (
     <main className={styles.page}>
       <header className={styles.hero}>
@@ -87,6 +141,41 @@ export default function Page() {
             <option value="public">Public RPC</option>
             <option value="private">Private RPC</option>
           </select>
+        </div>
+
+        <div className={styles.row}>
+          <label className={styles.label}>Network</label>
+          <select
+            className={styles.select}
+            value={selectedChainId}
+            onChange={(e) => setSelectedChainId(Number(e.target.value))}
+          >
+            {NETWORKS.map((network) => (
+              <option key={network.id} value={network.id}>
+                {network.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.row}>
+          <label className={styles.label}>Token</label>
+          <select
+            className={styles.select}
+            value={selectedToken?.address ?? ''}
+            onChange={(e) => setSelectedTokenAddress(e.target.value)}
+          >
+            {tokenOptions.map((token) => (
+              <option key={`${selectedChainId}-${token.symbol}`} value={token.address}>
+                {token.symbol} - {token.label}
+              </option>
+            ))}
+          </select>
+          {tokenAddressMissing ? (
+            <p className={styles.warningNote}>
+              Wrapped token address missing for this network. Set it in `.env` before testing transfers.
+            </p>
+          ) : null}
         </div>
 
         <div className={styles.row}>
@@ -173,7 +262,10 @@ export default function Page() {
       nativeOk: hook.nativeOk,
       percentFromAmount: hook.amountToPct(amount),
       rpcProfile: rpcMode,
-      activeRpcUrl: flareRpcUrl,
+      selectedChainId,
+      selectedToken: selectedToken?.symbol ?? null,
+      selectedTokenAddress: tokenAddressForHook,
+      activeRpcUrl: rpcUrlsByChainId[selectedChainId] ?? null,
     },
     validation,
     gas: {

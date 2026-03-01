@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnection } from 'wagmi'
 import { useSendErc20 } from '../hooks/useSendErc20'
 import { useRpcMode } from './providers'
 import styles from './page.module.css'
@@ -12,12 +13,14 @@ const DEFAULT_GAS_BUFFER_PERCENT = Number(process.env.NEXT_PUBLIC_GAS_BUFFER_PER
 
 export default function Page() {
   const { rpcMode, setRpcMode, flareRpcUrl } = useRpcMode()
-  const [to, setTo] = useState('0x000000000000000000000000000000000000dEaD')
+  const { address } = useConnection()
+  const [to, setTo] = useState('')
   const [amount, setAmount] = useState('1')
   const [gasBufferPercentInput, setGasBufferPercentInput] = useState(String(DEFAULT_GAS_BUFFER_PERCENT))
   const [sendError, setSendError] = useState<string | null>(null)
   const [gasError, setGasError] = useState<string | null>(null)
   const gasBufferPercent = Math.max(0, Math.round(Number(gasBufferPercentInput) || 0))
+  const isOwnAddress = !!address && !!to && address.toLowerCase() === to.toLowerCase()
 
   const hook = useSendErc20({
     tokenAddress: TEST_TOKEN_ADDRESS,
@@ -50,6 +53,12 @@ export default function Page() {
       setGasError(error instanceof Error ? error.message : 'Unknown error')
     }
   }
+
+  useEffect(() => {
+    if (address && !to) {
+      setTo(address)
+    }
+  }, [address, to])
 
   return (
     <main className={styles.page}>
@@ -86,7 +95,21 @@ export default function Page() {
             className={styles.input}
             value={to}
             onChange={(e) => setTo(e.target.value)}
+            placeholder={address ?? 'Connect wallet to auto-fill your address'}
           />
+          {address ? (
+            isOwnAddress ? (
+              <p className={styles.safeNote}>Recipient is your own connected wallet address.</p>
+            ) : (
+              <p className={styles.warningNote}>
+                Warning: recipient differs from your wallet. Double-check to avoid sending real tokens.
+              </p>
+            )
+          ) : (
+            <p className={styles.warningNote}>
+              Connect wallet first. Recipient auto-fills with your own address for safer testing.
+            </p>
+          )}
         </div>
 
         <div className={styles.split}>

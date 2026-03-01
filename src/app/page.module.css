@@ -79,6 +79,27 @@
   font-weight: 600;
 }
 
+.warningNote,
+.safeNote {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+}
+
+.warningNote {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+.safeNote {
+  color: #065f46;
+  background: #d1fae5;
+  border: 1px solid #6ee7b7;
+}
+
 .input,
 .select {
   width: 100%;

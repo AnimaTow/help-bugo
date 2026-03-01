@@ -1,48 +1,48 @@
 # help-bugo
 
-Next.js Test-Tool zum sicheren Prüfen von ERC-20 Transfers auf Flare/Songbird-Netzwerken mit `wagmi` + `RainbowKit`.
+Next.js test tool for safely validating ERC-20 transfers on Flare/Songbird networks using `wagmi` and `RainbowKit`.
 
 ## Features
 
-- Wallet Connect via RainbowKit (Injected + optional WalletConnect)
-- Netzwerk folgt der **verbundenen Wallet-Chain**
-- RPC-Profil Umschaltung: `public` / `private`
-- Unterstützte Chains:
+- Wallet connect via RainbowKit (Injected + optional WalletConnect)
+- Network is derived from the connected wallet chain
+- RPC profile switch: `public` / `private`
+- Supported chains:
   - Flare Mainnet
   - Songbird
   - Flare Testnet (Coston2)
   - Songbird Testnet (Coston)
-- Token-Auswahl je Chain:
-  - Standard: Wrapped Token
-  - Zusätzlich auf Flare Mainnet: BUGO
-- Gas-Test:
-  - Puffer auf Gas-Limit (`gas`)
-  - Optionaler Puffer auf Fee-Preise (`maxFeePerGas`, `maxPriorityFeePerGas`, `gasPrice`)
-- Sicherheits-Logik:
-  - Recipient default auf eigene Wallet-Adresse
-  - Warnung bei externer Adresse
-  - Self-transfer Block (z. B. WNat `Cannot transfer to self`)
+- Token selection per chain:
+  - Default: wrapped token
+  - Additional on Flare Mainnet: BUGO
+- Gas testing:
+  - Buffer on gas limit (`gas`)
+  - Optional buffer on fee prices (`maxFeePerGas`, `maxPriorityFeePerGas`, `gasPrice`)
+- Safety logic:
+  - Recipient defaults to your connected wallet address
+  - Warning for external recipient addresses
+  - Self-transfer guard (e.g. WNat `Cannot transfer to self`)
 
-## Voraussetzungen
+## Requirements
 
-- Node.js 20 oder 22 empfohlen (LTS)
+- Node.js 20 or 22 (LTS recommended)
 - Yarn 1.x
 
-## Installation
+## Install
 
 ```bash
 yarn install
 ```
 
-## Konfiguration
+## Configuration
 
-` .env.example ` nach ` .env.local ` kopieren:
+Copy `.env.example` to `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Wichtige Variablen:
+Important variables:
 
 - `NEXT_PUBLIC_RPC_MODE=public|private`
 - `NEXT_PUBLIC_GAS_BUFFER_PERCENT=30`
@@ -50,7 +50,7 @@ Wichtige Variablen:
 - `NEXT_PUBLIC_FEE_PRICE_BUFFER_ENABLED=false`
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...` (optional)
 
-RPC + Token Variablen:
+RPC and token variables:
 
 - Flare:
   - `NEXT_PUBLIC_FLARE_RPC_PUBLIC_URL`
@@ -70,34 +70,33 @@ RPC + Token Variablen:
   - `NEXT_PUBLIC_SONGBIRD_TESTNET_RPC_PRIVATE_URL`
   - `NEXT_PUBLIC_SONGBIRD_TESTNET_WRAPPED_TOKEN_ADDRESS`
 
-## Starten
+## Run
 
 ```bash
 yarn dev
 ```
 
-Dann öffnen:
+Open:
 
 - http://localhost:3000
 
-## Nutzung
+## Usage
 
-1. Wallet verbinden
-2. Chain im Wallet wählen (UI folgt der verbundenen Chain)
-3. Token wählen (Wrapped default, BUGO nur auf Flare Mainnet)
-4. Recipient prüfen
-5. Betrag und Gas Buffer setzen
-6. Optional: `Also buffer fee prices` aktivieren
-7. `Estimate Gas` und danach `Test Transfer`
+1. Connect wallet
+2. Select token (wrapped token is default; BUGO is available on Flare Mainnet)
+3. Verify recipient
+4. Set amount and gas buffer
+5. Optionally enable `Also buffer fee prices`
+6. Click `Estimate Gas`, then `Test Transfer`
 
-Im `Hook State` siehst du:
+In `Hook State` you can inspect:
 
-- aktive Chain + RPC URL
-- Gas-Limit Schätzung + Overhead
-- optional gepufferte Fee-Werte
-- Tx Hash / Status
+- Active chain and RPC URL
+- Gas-limit estimate and overhead
+- Optional buffered fee-price values
+- Tx hash and tx status
 
-## Nützliche Scripts
+## Scripts
 
 ```bash
 yarn dev
@@ -106,12 +105,12 @@ yarn start
 yarn lint
 ```
 
-## Bekannte Stolperfallen
+## Known Issues / Notes
 
-- Nach ENV-Änderungen immer Dev-Server neu starten.
-- Wenn Wallet-Warnung zu hoher Fee erscheint:
-  - `Also buffer fee prices` deaktivieren.
-- Bei `Cannot transfer to self`:
-  - andere Recipient-Adresse verwenden.
-- Wenn `localStorage.getItem is not a function` auftritt:
-  - Node LTS (20/22) nutzen und Runtime-Flags prüfen.
+- Restart the dev server after any env changes.
+- If your wallet warns about high network fees:
+  - Disable `Also buffer fee prices`.
+- If you get `Cannot transfer to self`:
+  - Use a different recipient address.
+- If you get `localStorage.getItem is not a function`:
+  - Use Node LTS (20/22) and check runtime flags.

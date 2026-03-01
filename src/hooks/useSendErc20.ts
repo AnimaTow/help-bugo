@@ -22,9 +22,9 @@ const ERC20_TRANSFER_ABI = [
 export type BalanceLike = { value: bigint; decimals: number }
 
 /**
- * Hook zum Senden eines ERC-20 Tokens (z. B. WFLR/ WNAT).
- * Nutzt `transfer(to, amount)`, berechnet Max auf Basis des Token-Balances
- * und kann optional eine Mindestmenge Native (FLR) für Gas erfordern.
+ * Hook for sending an ERC-20 token (e.g. WFLR / WNat).
+ * Uses `transfer(to, amount)`, computes max from token balance,
+ * and can optionally require a minimum native balance for gas.
  */
 export function useSendErc20(opts: {
     tokenAddress: Address
@@ -32,8 +32,8 @@ export function useSendErc20(opts: {
     chainId?: number
     allowedChainIds?: number[]
     requireMinGasNative?: boolean
-    nativeBalance?: BalanceLike // für Gas-Check
-    minGasNative?: number       // ~0.0003 FLR als Faustregel
+    nativeBalance?: BalanceLike // for gas availability check
+    minGasNative?: number       // ~0.0003 FLR practical default
     gasBufferPercent?: number
     feePriceBufferEnabled?: boolean
 }) {

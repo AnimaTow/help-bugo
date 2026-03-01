@@ -34,6 +34,7 @@ export function useSendErc20(opts: {
     requireMinGasNative?: boolean
     nativeBalance?: BalanceLike // für Gas-Check
     minGasNative?: number       // ~0.0003 FLR als Faustregel
+    gasBufferPercent?: number
 }) {
     const {
         tokenAddress,
@@ -43,6 +44,7 @@ export function useSendErc20(opts: {
         requireMinGasNative = false,
         nativeBalance,
         minGasNative = 0.0003,
+        gasBufferPercent = 30,
     } = opts
 
     const dec = tokenBalance?.decimals ?? 18
@@ -51,6 +53,7 @@ export function useSendErc20(opts: {
         [tokenBalance, dec]
     )
     const max = Math.max(0, total)
+    const normalizedGasBufferPercent = Math.max(0, Math.round(gasBufferPercent))
 
     const nativeOk = useMemo(() => {
         if (!requireMinGasNative) return true
@@ -90,7 +93,7 @@ export function useSendErc20(opts: {
             account: address,
         })
 
-        const gasLimit = estimatedGas * BigInt(130) / BigInt(100)
+        const gasLimit = estimatedGas * BigInt(100 + normalizedGasBufferPercent) / BigInt(100)
         setLastEstimatedGas(estimatedGas)
         setLastGasLimit(gasLimit)
 
@@ -132,6 +135,7 @@ export function useSendErc20(opts: {
         total,
         max,
         nativeOk,
+        gasBufferPercent: normalizedGasBufferPercent,
         // actions
         validate,
         estimateGas,

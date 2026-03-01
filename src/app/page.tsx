@@ -3,14 +3,20 @@
 import { useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import { useSendErc20 } from '../hooks/useSendErc20'
+import { useRpcMode } from './providers'
+import styles from './page.module.css'
 
 const TEST_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
+const DEFAULT_GAS_BUFFER_PERCENT = Number(process.env.NEXT_PUBLIC_GAS_BUFFER_PERCENT ?? '30')
 
 export default function Page() {
+  const { rpcMode, setRpcMode, flareRpcUrl } = useRpcMode()
   const [to, setTo] = useState('0x000000000000000000000000000000000000dEaD')
   const [amount, setAmount] = useState('1')
+  const [gasBufferPercentInput, setGasBufferPercentInput] = useState(String(DEFAULT_GAS_BUFFER_PERCENT))
   const [sendError, setSendError] = useState<string | null>(null)
   const [gasError, setGasError] = useState<string | null>(null)
+  const gasBufferPercent = Math.max(0, Math.round(Number(gasBufferPercentInput) || 0))
 
   const hook = useSendErc20({
     tokenAddress: TEST_TOKEN_ADDRESS,
@@ -18,9 +24,13 @@ export default function Page() {
     chainId: 14,
     allowedChainIds: [14],
     requireMinGasNative: false,
+    gasBufferPercent,
   })
 
   const validation = useMemo(() => hook.validate(to, amount), [hook, to, amount])
+  const gasOverhead = hook.lastEstimatedGas && hook.lastGasLimit
+    ? hook.lastGasLimit - hook.lastEstimatedGas
+    : null
 
   async function onSend() {
     setSendError(null)
@@ -41,60 +51,88 @@ export default function Page() {
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ marginTop: 0 }}>useSendErc20 Test Output</h1>
-      <p style={{ opacity: 0.8 }}>
-        This page is for local hook testing only.
-      </p>
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <h1 className={styles.title}>useSendErc20 Test Console</h1>
+        <p className={styles.subtitle}>
+          Switch RPC profile, tune gas buffer, estimate limits, and inspect live hook state.
+        </p>
+      </header>
 
-      <section style={{ display: 'grid', gap: 12, marginTop: 24 }}>
-        <label>
-          Recipient Address
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            style={{ width: '100%', marginTop: 4, padding: 8 }}
-          />
-        </label>
-
-        <label>
-          Amount
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            style={{ width: '100%', marginTop: 4, padding: 8 }}
-          />
-        </label>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => setAmount(hook.pctToAmount(25))}>25%</button>
-          <button type="button" onClick={() => setAmount(hook.pctToAmount(50))}>50%</button>
-          <button type="button" onClick={() => setAmount(hook.pctToAmount(100))}>100%</button>
+      <section className={styles.panel}>
+        <div className={styles.row}>
+          <label className={styles.label}>RPC Profile</label>
+          <select
+            className={styles.select}
+            value={rpcMode}
+            onChange={(e) => setRpcMode(e.target.value as 'public' | 'private')}
+          >
+            <option value="public">Public RPC</option>
+            <option value="private">Private RPC</option>
+          </select>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className={styles.row}>
+          <label className={styles.label}>Recipient Address</label>
+          <input
+            className={styles.input}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.split}>
+          <div className={styles.row}>
+            <label className={styles.label}>Amount</label>
+            <input
+              className={styles.input}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.row}>
+            <label className={styles.label}>Gas Buffer Percent</label>
+            <input
+              className={styles.input}
+              type="number"
+              min={0}
+              step={1}
+              value={gasBufferPercentInput}
+              onChange={(e) => setGasBufferPercentInput(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className={styles.percentRow}>
+          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(25))}>25%</button>
+          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(50))}>50%</button>
+          <button className={styles.chip} type="button" onClick={() => setAmount(hook.pctToAmount(100))}>100%</button>
+        </div>
+
+        <div className={styles.actionRow}>
           <button
+            className={styles.buttonSecondary}
             type="button"
             onClick={onEstimateGas}
             disabled={!validation.canSubmit}
-            style={{ width: 220, padding: '10px 14px' }}
           >
             Estimate Gas
           </button>
           <button
+            className={styles.button}
             type="button"
             onClick={onSend}
             disabled={!validation.canSubmit}
-            style={{ width: 220, padding: '10px 14px' }}
           >
             Test Transfer
           </button>
         </div>
       </section>
 
-      <section style={{ marginTop: 24 }}>
-        <h2>Hook State</h2>
-        <pre style={{ background: '#131a2e', padding: 12, borderRadius: 8, overflowX: 'auto' }}>
+      <section className={styles.statePanel}>
+        <h2 className={styles.stateTitle}>Hook State</h2>
+        <pre className={styles.json}>
 {JSON.stringify(
   {
     derived: {
@@ -103,10 +141,14 @@ export default function Page() {
       max: hook.max,
       nativeOk: hook.nativeOk,
       percentFromAmount: hook.amountToPct(amount),
+      rpcProfile: rpcMode,
+      activeRpcUrl: flareRpcUrl,
     },
     validation,
     gas: {
       lastEstimatedGas: hook.lastEstimatedGas?.toString() ?? null,
+      gasBufferPercent: hook.gasBufferPercent,
+      gasOverhead: gasOverhead?.toString() ?? null,
       lastGasLimit: hook.lastGasLimit?.toString() ?? null,
       gasError,
     },

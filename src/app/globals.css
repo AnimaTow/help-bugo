@@ -2,13 +2,34 @@
   box-sizing: border-box;
 }
 
+:root {
+  --bg-start: #f4f6fb;
+  --bg-end: #e9eef8;
+  --ink-strong: #0f172a;
+  --ink-mid: #334155;
+  --ink-soft: #64748b;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: #ffffff;
+  --line: rgba(15, 23, 42, 0.12);
+  --accent: #0f766e;
+  --accent-soft: #14b8a6;
+  --accent-2: #0ea5e9;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #0b1020;
-  color: #e8ecff;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink-strong);
+  font-family: "Satoshi", "Avenir Next", "Manrope", "Segoe UI Variable", sans-serif;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(20, 184, 166, 0.24) 0, transparent 30%),
+    radial-gradient(circle at 85% 6%, rgba(14, 165, 233, 0.18) 0, transparent 35%),
+    linear-gradient(145deg, var(--bg-start), var(--bg-end));
 }
 
 a {

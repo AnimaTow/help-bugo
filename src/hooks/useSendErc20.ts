@@ -3,7 +3,7 @@
 import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useAccount, useChainId } from 'wagmi'
 import type { Address } from 'viem'
 import { isAddress, parseUnits, formatUnits } from 'viem'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Abi } from 'viem'
 
 const ERC20_TRANSFER_ABI = [
@@ -65,6 +65,8 @@ export function useSendErc20(opts: {
     const connectedChainId = useChainId()
     const effectiveChainId = chainId ?? connectedChainId
     const publicClient = usePublicClient({ chainId: effectiveChainId })
+    const [lastEstimatedGas, setLastEstimatedGas] = useState<bigint | null>(null)
+    const [lastGasLimit, setLastGasLimit] = useState<bigint | null>(null)
 
     function validate(to: string, amount: string) {
         const toValid = !!to && isAddress(to as Address)
@@ -75,12 +77,11 @@ export function useSendErc20(opts: {
         return { toValid, amtValid, networkOk, nativeOk, canSubmit }
     }
 
-    async function send(to: Address, amount: string) {
-        if (!address || !publicClient || !isAddress(to)) return
-        if (!validate(to, amount).canSubmit) return
+    async function estimateGas(to: Address, amount: string) {
+        if (!address || !publicClient || !isAddress(to)) return null
+        if (!validate(to, amount).canSubmit) return null
 
         const parsedAmount = parseUnits(amount, dec)
-
         const estimatedGas = await publicClient.estimateContractGas({
             address: tokenAddress,
             abi: ERC20_TRANSFER_ABI,
@@ -89,8 +90,21 @@ export function useSendErc20(opts: {
             account: address,
         })
 
-        const gasWithBuffer =
-            estimatedGas * BigInt(130) / BigInt(100)
+        const gasLimit = estimatedGas * BigInt(130) / BigInt(100)
+        setLastEstimatedGas(estimatedGas)
+        setLastGasLimit(gasLimit)
+
+        return { estimatedGas, gasLimit }
+    }
+
+    async function send(to: Address, amount: string) {
+        if (!address || !publicClient || !isAddress(to)) return
+        if (!validate(to, amount).canSubmit) return
+
+        const parsedAmount = parseUnits(amount, dec)
+        const gasResult = await estimateGas(to, amount)
+        const gasWithBuffer = gasResult?.gasLimit
+        if (!gasWithBuffer) return
 
         await writeContractAsync({
             address: tokenAddress,
@@ -120,9 +134,13 @@ export function useSendErc20(opts: {
         nativeOk,
         // actions
         validate,
+        estimateGas,
         send,
         pctToAmount,
         amountToPct,
+        // gas state
+        lastEstimatedGas,
+        lastGasLimit,
         // tx state
         txHash: hash,
         isPending,

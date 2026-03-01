@@ -5,12 +5,12 @@ import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: 'Hook Test',
-  description: 'Testausgabe fuer useSendErc20',
+  description: 'Test output for useSendErc20',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="en">
       <body>
         <Providers>{children}</Providers>
       </body>

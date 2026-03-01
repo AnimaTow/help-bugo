@@ -10,6 +10,7 @@ export default function Page() {
   const [to, setTo] = useState('0x000000000000000000000000000000000000dEaD')
   const [amount, setAmount] = useState('1')
   const [sendError, setSendError] = useState<string | null>(null)
+  const [gasError, setGasError] = useState<string | null>(null)
 
   const hook = useSendErc20({
     tokenAddress: TEST_TOKEN_ADDRESS,
@@ -26,20 +27,29 @@ export default function Page() {
     try {
       await hook.send(to as Address, amount)
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : 'Unbekannter Fehler')
+      setSendError(error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  async function onEstimateGas() {
+    setGasError(null)
+    try {
+      await hook.estimateGas(to as Address, amount)
+    } catch (error) {
+      setGasError(error instanceof Error ? error.message : 'Unknown error')
     }
   }
 
   return (
     <main style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ marginTop: 0 }}>useSendErc20 Testausgabe</h1>
+      <h1 style={{ marginTop: 0 }}>useSendErc20 Test Output</h1>
       <p style={{ opacity: 0.8 }}>
-        Diese Seite ist nur zum lokalen Testen des Hooks.
+        This page is for local hook testing only.
       </p>
 
       <section style={{ display: 'grid', gap: 12, marginTop: 24 }}>
         <label>
-          Empfaenger-Adresse
+          Recipient Address
           <input
             value={to}
             onChange={(e) => setTo(e.target.value)}
@@ -48,7 +58,7 @@ export default function Page() {
         </label>
 
         <label>
-          Menge
+          Amount
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -62,18 +72,28 @@ export default function Page() {
           <button type="button" onClick={() => setAmount(hook.pctToAmount(100))}>100%</button>
         </div>
 
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={!validation.canSubmit}
-          style={{ width: 220, padding: '10px 14px' }}
-        >
-          Transfer testen
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onEstimateGas}
+            disabled={!validation.canSubmit}
+            style={{ width: 220, padding: '10px 14px' }}
+          >
+            Estimate Gas
+          </button>
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!validation.canSubmit}
+            style={{ width: 220, padding: '10px 14px' }}
+          >
+            Test Transfer
+          </button>
+        </div>
       </section>
 
       <section style={{ marginTop: 24 }}>
-        <h2>Hook Zustand</h2>
+        <h2>Hook State</h2>
         <pre style={{ background: '#131a2e', padding: 12, borderRadius: 8, overflowX: 'auto' }}>
 {JSON.stringify(
   {
@@ -85,6 +105,11 @@ export default function Page() {
       percentFromAmount: hook.amountToPct(amount),
     },
     validation,
+    gas: {
+      lastEstimatedGas: hook.lastEstimatedGas?.toString() ?? null,
+      lastGasLimit: hook.lastGasLimit?.toString() ?? null,
+      gasError,
+    },
     tx: {
       txHash: hook.txHash ?? null,
       isPending: hook.isPending,

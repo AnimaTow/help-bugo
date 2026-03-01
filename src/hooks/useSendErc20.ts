@@ -1,6 +1,6 @@
 'use client'
 
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useAccount, useChainId } from 'wagmi'
 import type { Address } from 'viem'
 import { isAddress, parseUnits, formatUnits } from 'viem'
 import { useMemo } from 'react'
@@ -59,42 +59,46 @@ export function useSendErc20(opts: {
         return n > minGasNative
     }, [requireMinGasNative, nativeBalance, minGasNative])
 
-    const { writeContract, data: hash, isPending, error } = useWriteContract()
+    const { writeContractAsync, data: hash, isPending, error } = useWriteContract()
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+    const { address } = useAccount()
+    const connectedChainId = useChainId()
+    const effectiveChainId = chainId ?? connectedChainId
+    const publicClient = usePublicClient({ chainId: effectiveChainId })
 
     function validate(to: string, amount: string) {
         const toValid = !!to && isAddress(to as Address)
         const n = Number(amount)
         const amtValid = Number.isFinite(n) && n > 0 && n <= max
-        const networkOk = !!chainId && allowedChainIds.includes(chainId)
+        const networkOk = !!effectiveChainId && allowedChainIds.includes(effectiveChainId)
         const canSubmit = toValid && amtValid && networkOk && nativeOk && !isPending && !isConfirming
         return { toValid, amtValid, networkOk, nativeOk, canSubmit }
     }
 
     async function send(to: Address, amount: string) {
-        const n = Number(amount)
-        if (!Number.isFinite(n) || n <= 0) return
+        if (!address || !publicClient || !isAddress(to)) return
+        if (!validate(to, amount).canSubmit) return
 
         const parsedAmount = parseUnits(amount, dec)
 
-        // 1️⃣ Gas schätzen
-        const estimatedGas = await publicClient!.estimateContractGas({
+        const estimatedGas = await publicClient.estimateContractGas({
             address: tokenAddress,
             abi: ERC20_TRANSFER_ABI,
             functionName: 'transfer',
             args: [to, parsedAmount],
-            account: undefined, // optional falls du address reinreichen willst
+            account: address,
         })
 
-        // 2️⃣ 30% Buffer
-        const gasWithBuffer = estimatedGas * 130n / 100n
+        const gasWithBuffer =
+            estimatedGas * BigInt(130) / BigInt(100)
 
-        // 3️⃣ TX senden mit manuellem Gas-Limit
-        writeContract({
+        await writeContractAsync({
             address: tokenAddress,
             abi: ERC20_TRANSFER_ABI,
             functionName: 'transfer',
             args: [to, parsedAmount],
+            account: address,
+            chain: publicClient.chain,
             gas: gasWithBuffer,
         })
     }
